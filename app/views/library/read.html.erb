@@ -1,0 +1,232 @@
+<div class="reader-shell">
+  <% prev_section_url = @page_number > 1 ? library_book_read_path(@book, page: @page_number - 1) : nil %>
+  <% next_section_url = @page_number < @total_pages ? library_book_read_path(@book, page: @page_number + 1) : nil %>
+  <div class="reader-header">
+    <div class="reader-breadcrumbs">
+      <%= link_to "Library", library_path %>
+      <span>/</span>
+      <span><%= @book.title %></span>
+    </div>
+    <div class="reader-controls">
+      <label for="reader-font-family">Font</label>
+      <select id="reader-font-family">
+        <option value="Georgia, serif">Georgia</option>
+        <option value="'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', sans-serif">Atkinson</option>
+        <option value="'IBM Plex Serif', serif">IBM Plex Serif</option>
+        <option value="'Noto Serif', serif">Noto Serif</option>
+      </select>
+      <label for="reader-font-size">Size</label>
+      <input id="reader-font-size" type="range" min="14" max="30" step="1" value="18" />
+      <output id="reader-font-size-output">18px</output>
+    </div>
+  </div>
+  <div class="reader-stage" id="reader-stage">
+    <div class="reader-viewport" id="reader-viewport">
+      <div class="reader-content" id="reader-content">
+        <%= sanitize @section_html %>
+      </div>
+    </div>
+  </div>
+  <div
+    class="reader-pagination"
+    data-section-prev-url="<%= prev_section_url %>"
+    data-section-next-url="<%= next_section_url %>"
+    data-section-number="<%= @page_number %>"
+    data-section-total="<%= @total_pages %>"
+  >
+    <button id="reader-prev" class="reader-page-link" type="button">Previous</button>
+    <span id="reader-page-status">Section <%= @page_number %> of <%= @total_pages %></span>
+    <button id="reader-next" class="reader-page-link" type="button">Next</button>
+  </div>
+</div>
+<script>
+  (() => {
+    const stage = document.getElementById("reader-stage");
+    const viewport = document.getElementById("reader-viewport");
+    const content = document.getElementById("reader-content");
+    const pagination = document.querySelector(".reader-pagination");
+    const prevButton = document.getElementById("reader-prev");
+    const nextButton = document.getElementById("reader-next");
+    const pageStatus = document.getElementById("reader-page-status");
+    const fontFamily = document.getElementById("reader-font-family");
+    const fontSize = document.getElementById("reader-font-size");
+    const fontSizeOutput = document.getElementById("reader-font-size-output");
+
+    const FAMILY_KEY = "reader.fontFamily";
+    const SIZE_KEY = "reader.fontSize";
+
+    const sectionPrevUrl = pagination?.dataset.sectionPrevUrl || "";
+    const sectionNextUrl = pagination?.dataset.sectionNextUrl || "";
+    const sectionNumber = Number(pagination?.dataset.sectionNumber || "1");
+    const sectionTotal = Number(pagination?.dataset.sectionTotal || "1");
+
+    let virtualPageCount = 1;
+    let virtualPageIndex = 1;
+    let virtualPageOffsets = [0];
+
+    const syncViewportHeight = () => {
+      if (!stage || !viewport || !content) return;
+
+      const stageHeight = Math.max(1, stage.clientHeight);
+      const computed = window.getComputedStyle(content);
+      const lineHeight = parseFloat(computed.lineHeight) || 28;
+      const wholeLines = Math.max(1, Math.floor(stageHeight / lineHeight));
+      const snappedHeight = Math.max(lineHeight, wholeLines * lineHeight);
+
+      viewport.style.height = `${snappedHeight}px`;
+    };
+
+    const getMetrics = () => {
+      if (!viewport || !content) {
+        return { pageHeight: 1, lineHeight: 1, contentHeight: 1 };
+      }
+
+      const pageHeight = Math.max(1, viewport.clientHeight);
+      const computed = window.getComputedStyle(content);
+      const lineHeight = parseFloat(computed.lineHeight) || 28;
+
+      return {
+        pageHeight,
+        lineHeight,
+        contentHeight: Math.max(1, content.offsetHeight)
+      };
+    };
+
+    const buildPageOffsets = () => {
+      if (!stage || !content) return [0];
+
+      content.style.transform = "translateY(0px)";
+
+      const { pageHeight, lineHeight, contentHeight } = getMetrics();
+      const offsets = [0];
+
+      let currentStart = 0;
+      const maxStart = Math.max(0, contentHeight - pageHeight);
+      const minTail = Math.max(1, lineHeight * 0.75);
+
+      while (currentStart < maxStart - 1) {
+        const remaining = maxStart - currentStart;
+        if (remaining < minTail) break;
+
+        let nextStart = currentStart + pageHeight;
+        nextStart = Math.min(maxStart, nextStart);
+        nextStart = Math.max(currentStart + lineHeight, nextStart);
+
+        if (nextStart <= currentStart + 1) {
+          break;
+        }
+
+        offsets.push(nextStart);
+        currentStart = nextStart;
+      }
+
+      return offsets;
+    };
+
+    const refreshStatus = () => {
+      if (!pageStatus) return;
+      pageStatus.textContent =
+        `Section ${sectionNumber} of ${sectionTotal} \u2014 Page ${virtualPageIndex} of ${virtualPageCount}`;
+    };
+
+    const setButtonState = (btn, enabled) => {
+      if (!btn) return;
+      btn.classList.toggle("is-disabled", !enabled);
+      btn.disabled = !enabled;
+    };
+
+    const applyNavStates = () => {
+      setButtonState(prevButton, virtualPageIndex > 1 || sectionPrevUrl.length > 0);
+      setButtonState(nextButton, virtualPageIndex < virtualPageCount || sectionNextUrl.length > 0);
+      refreshStatus();
+    };
+
+    // Shift content up by one stage-height per page.
+    // content.offsetHeight gives the true natural height even when parent is overflow:hidden.
+    const goToPage = (n) => {
+      if (!stage || !content) return;
+      const bounded = Math.max(1, Math.min(virtualPageCount, n));
+      const pageOffset = virtualPageOffsets[bounded - 1] || 0;
+      content.style.transform = `translateY(-${pageOffset}px)`;
+      virtualPageIndex = bounded;
+      applyNavStates();
+    };
+
+    const repaginate = ({ preserveProgress = false } = {}) => {
+      if (!stage || !content) return;
+      const oldCount = virtualPageCount;
+      const oldIndex = virtualPageIndex;
+
+      virtualPageOffsets = buildPageOffsets();
+      virtualPageCount = Math.max(1, virtualPageOffsets.length);
+
+      if (preserveProgress && oldCount > 1) {
+        const progress = (oldIndex - 1) / (oldCount - 1);
+        virtualPageIndex = Math.max(1, Math.min(virtualPageCount,
+          Math.round(progress * (virtualPageCount - 1)) + 1));
+      } else {
+        virtualPageIndex = 1;
+      }
+
+      goToPage(virtualPageIndex);
+    };
+
+    const applyFontStyles = ({ preserveProgress = false } = {}) => {
+      if (!content) return;
+      content.style.fontFamily = fontFamily.value;
+      content.style.fontSize = `${fontSize.value}px`;
+      content.style.lineHeight = "1.7";
+      // Double rAF lets the browser finish layout before we measure offsetHeight
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        syncViewportHeight();
+        repaginate({ preserveProgress });
+      }));
+    };
+
+    const navigatePrev = () => {
+      if (virtualPageIndex > 1) { goToPage(virtualPageIndex - 1); return; }
+      if (sectionPrevUrl) window.location.assign(sectionPrevUrl);
+    };
+
+    const navigateNext = () => {
+      if (virtualPageIndex < virtualPageCount) { goToPage(virtualPageIndex + 1); return; }
+      if (sectionNextUrl) window.location.assign(sectionNextUrl);
+    };
+
+    // Restore saved font preferences
+    const savedFamily = localStorage.getItem(FAMILY_KEY);
+    const savedSize = localStorage.getItem(SIZE_KEY);
+    if (savedFamily) fontFamily.value = savedFamily;
+    if (savedSize) fontSize.value = savedSize;
+    fontSizeOutput.textContent = `${fontSize.value}px`;
+
+    applyFontStyles();
+
+    fontFamily.addEventListener("change", () => {
+      localStorage.setItem(FAMILY_KEY, fontFamily.value);
+      applyFontStyles({ preserveProgress: true });
+    });
+
+    fontSize.addEventListener("input", () => {
+      fontSizeOutput.textContent = `${fontSize.value}px`;
+      localStorage.setItem(SIZE_KEY, fontSize.value);
+      applyFontStyles({ preserveProgress: true });
+    });
+
+    prevButton?.addEventListener("click", (e) => { e.preventDefault(); navigatePrev(); });
+    nextButton?.addEventListener("click", (e) => { e.preventDefault(); navigateNext(); });
+
+    window.addEventListener("keydown", (e) => {
+      if (e.key === "ArrowLeft") { e.preventDefault(); navigatePrev(); }
+      if (e.key === "ArrowRight") { e.preventDefault(); navigateNext(); }
+    });
+
+    let resizeTimer = null;
+    window.addEventListener("resize", () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => applyFontStyles({ preserveProgress: true }), 120);
+    });
+
+    applyNavStates();
+  })();
+</script>
