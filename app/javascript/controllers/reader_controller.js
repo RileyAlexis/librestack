@@ -10,12 +10,14 @@ export default class extends Controller {
     "fontFamily",
     "fontSize",
     "fontSizeOutput",
+    "spread",
   ];
 
   static values = {
     bookId: String,
     epubUrl: String,
     progressUrl: String,
+    spread: { type: String, default: "none" },
   };
 
   connect() {
@@ -29,8 +31,10 @@ export default class extends Controller {
     this.resizeTimer = null;
     this.saveProgressTimer = null;
     this.isInitializing = false;
+    this.locationGenId = 0;
     this.keyDownHandler = this.onKeydown.bind(this);
     this.resizeHandler = this.onResize.bind(this);
+
     this.initialize();
   }
 
@@ -39,7 +43,13 @@ export default class extends Controller {
     window.removeEventListener("resize", this.resizeHandler);
     if (this.resizeTimer) clearTimeout(this.resizeTimer);
     if (this.saveProgressTimer) clearTimeout(this.saveProgressTimer);
-    if (this.rendition) this.rendition.destroy();
+    if (this.rendition) {
+      try {
+        this.rendition.destroy();
+      } catch {
+        /* partially initialized */
+      }
+    }
     if (this.book) this.book.destroy();
   }
 
@@ -170,10 +180,14 @@ export default class extends Controller {
   async generateBookLocations() {
     if (!this.book) return;
 
+    const genId = ++this.locationGenId;
+
     await this.book.ready;
+    if (!this.book || this.locationGenId !== genId) return;
 
     if (this.book.loaded?.pageList) {
       await this.book.loaded.pageList;
+      if (!this.book || this.locationGenId !== genId) return;
       const pageList = this.book.pageList;
       if (
         pageList &&
@@ -186,7 +200,13 @@ export default class extends Controller {
       }
     }
 
-    await this.book.locations.generate(1024);
+    if (!this.book || this.locationGenId !== genId) return;
+    try {
+      await this.book.locations.generate(1024);
+    } catch {
+      return; // book was destroyed during generation
+    }
+    if (!this.book || this.locationGenId !== genId) return;
     this.totalBookPages = this.book.locations.length();
 
     const currentLocation = this.rendition?.currentLocation?.();
@@ -217,12 +237,17 @@ export default class extends Controller {
 
     const FAMILY_KEY = "reader.fontFamily";
     const SIZE_KEY = "reader.fontSize";
+    const SPREAD_KEY = "reader.spread";
 
     const savedFamily = localStorage.getItem(FAMILY_KEY);
     const savedSize = localStorage.getItem(SIZE_KEY);
+    const savedSpread = localStorage.getItem(SPREAD_KEY);
     if (savedFamily) this.fontFamilyTarget.value = savedFamily;
     if (savedSize) this.fontSizeTarget.value = savedSize;
+    if (savedSpread) this.spreadTarget.value = savedSpread;
     this.fontSizeOutputTarget.textContent = `${this.fontSizeTarget.value}px`;
+
+    console.log("spead", this.spreadTarget.value);
 
     let epubBinary;
     try {
@@ -253,7 +278,11 @@ export default class extends Controller {
 
     // Destroy previous rendition if it exists
     if (this.rendition) {
-      this.rendition.destroy();
+      try {
+        this.rendition.destroy();
+      } catch {
+        // Rendition may be partially initialized (scroller not yet set up)
+      }
       this.rendition = null;
     }
 
@@ -265,7 +294,7 @@ export default class extends Controller {
         width: "100%",
         height: "100%",
         flow: "paginated",
-        spread: "none",
+        spread: this.spreadTarget.value === "Double" ? "auto" : "none",
       });
       console.log("✓ Rendition created, rendered to stage");
     } catch (error) {
@@ -372,5 +401,42 @@ export default class extends Controller {
     this.resizeTimer = setTimeout(() => {
       this.rendition?.resize("100%", "100%");
     }, 150);
+  }
+
+  async reRender(cfi) {
+    this.locationGenId++; // abort any in-flight location generation
+    if (this.rendition) {
+      try {
+        this.rendition.destroy();
+      } catch {
+        /* partially initialized */
+      }
+      this.rendition = null;
+    }
+
+    this.stageTarget.innerHTML = "";
+    this.rendition = this.book.renderTo(this.stageTarget, {
+      width: "100%",
+      height: "100%",
+      flow: "paginated",
+      spread: this.spreadValue === "Single" ? "none" : "auto",
+    });
+
+    this.rendition.on("relocated", (location) => {
+      this.updateStatus(location);
+    });
+
+    await this.rendition.display(cfi || undefined);
+    this.applyTheme();
+  }
+
+  async spreadChanged() {
+    const newSpread = this.spreadTarget.value;
+    localStorage.setItem("reader.spread", newSpread);
+    this.spreadValue = newSpread;
+    if (this.rendition) {
+      const cfi = this.rendition.currentLocation()?.start?.cfi;
+      await this.reRender(cfi);
+    }
   }
 }
