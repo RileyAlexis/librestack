@@ -112,6 +112,12 @@ export default class extends Controller<HTMLElement> {
   }
 
   connect() {
+    // Prevent multiple initializations on the same element
+    if ((this.element as any).__readerInitialized) {
+      console.log("Reader already initialized on this element, skipping");
+      return;
+    }
+
     this.book = null;
     this.rendition = null;
     this.publisherPageList = null;
@@ -127,7 +133,18 @@ export default class extends Controller<HTMLElement> {
     this.keyDownHandler = this.onKeydown.bind(this);
     this.resizeHandler = this.onResize.bind(this);
 
-    this.initialize();
+    console.log("Reader controller connected, stage dimensions:", {
+      width: this.stageTarget?.clientWidth,
+      height: this.stageTarget?.clientHeight,
+    });
+
+    // Mark as initializing to prevent duplicate init
+    (this.element as any).__readerInitialized = true;
+
+    // Defer initialization to ensure DOM is fully painted and sized
+    setTimeout(() => {
+      this.initialize();
+    }, 100);
   }
 
   disconnect() {
@@ -179,8 +196,10 @@ export default class extends Controller<HTMLElement> {
       const data = (await response.json()) as ProgressResponse;
       this.bookmarks = Array.isArray(data.bookmarks) ? data.bookmarks : [];
       this.lastSavedCfi = data.last_cfi ?? null;
+      console.log("Loaded progress from DB:", { cfi: data.last_cfi });
       return data.last_cfi ?? null;
-    } catch {
+    } catch (error) {
+      console.error("Error loading progress:", error);
       return null;
     }
   }
@@ -196,6 +215,8 @@ export default class extends Controller<HTMLElement> {
     if (Array.isArray(bookmarks)) payload.bookmarks = bookmarks;
     if (Object.keys(payload).length === 0) return;
 
+    console.log("Saving progress to DB:", { cfi: payload.last_cfi });
+
     try {
       await fetch(this.progressUrlValue, {
         method: "PATCH",
@@ -210,8 +231,10 @@ export default class extends Controller<HTMLElement> {
 
       if (payload.last_cfi) {
         this.lastSavedCfi = payload.last_cfi;
+        console.log("✓ Progress saved:", payload.last_cfi);
       }
-    } catch {
+    } catch (error) {
+      console.error("✗ Save progress error:", error);
       // Ignore transient network failures; next relocation will retry.
     }
   }
@@ -221,13 +244,16 @@ export default class extends Controller<HTMLElement> {
     this.pendingCfi = cfi;
     if (this.saveProgressTimer) clearTimeout(this.saveProgressTimer);
 
-    this.saveProgressTimer = setTimeout(() => {
-      const toSave = this.pendingCfi;
-      this.pendingCfi = null;
-      if (toSave) {
-        this.saveProgressToDb({ cfi: toSave });
+    this.saveProgressTimer = setTimeout(async () => {
+      // Re-fetch the current location from the rendition to ensure we have the final state
+      const currentLocation = await this.rendition?.currentLocation?.();
+      const finalCfi = this.extractCfi(currentLocation);
+
+      if (finalCfi && finalCfi !== this.lastSavedCfi) {
+        this.saveProgressToDb({ cfi: finalCfi });
       }
-    }, 350);
+      this.pendingCfi = null;
+    }, 800);
   }
 
   updateStatus(location: ReaderLocation | null | undefined): void {
@@ -402,10 +428,27 @@ export default class extends Controller<HTMLElement> {
     try {
       console.log(
         "Attempting to display content, CFI:",
-        initialCfi ? "saved" : "start",
+        initialCfi || "(start of book)",
       );
       await this.rendition.display(initialCfi || undefined);
-      console.log("✓ Content displayed");
+
+      // Log the actual location after display
+      const displayedLocation = await this.rendition?.currentLocation?.();
+      const displayedCfi = this.extractCfi(displayedLocation);
+
+      // If the displayed CFI doesn't match what we asked for, this EPUB has issues
+      if (initialCfi && displayedCfi && initialCfi !== displayedCfi) {
+        console.warn(
+          "⚠ CFI mismatch detected - EPUB structure may be malformed",
+          { requested: initialCfi, displayed: displayedCfi },
+        );
+      }
+
+      console.log("✓ Content displayed", {
+        savedCfi: initialCfi,
+        displayedCfi: displayedCfi,
+        stage: this.stageTarget.innerHTML.length,
+      });
 
       // Apply font styles after content is rendered
       this.applyTheme();
@@ -416,13 +459,24 @@ export default class extends Controller<HTMLElement> {
         this.stageTarget.clientWidth,
         this.stageTarget.clientHeight,
       );
-      console.log("✓ Layout resized");
+      console.log(
+        "✓ Layout resized to",
+        this.stageTarget.clientWidth,
+        "x",
+        this.stageTarget.clientHeight,
+      );
 
       // Generate locations asynchronously in background
       this.generateBookLocations();
     } catch (error: unknown) {
       this.pageStatusTarget.textContent = "Could not display this book";
       console.error("✗ Reader display error:", error);
+      console.error("Stage target info:", {
+        hasTarget: !!this.stageTarget,
+        innerHTML: this.stageTarget?.innerHTML?.substring(0, 200),
+        clientWidth: this.stageTarget?.clientWidth,
+        clientHeight: this.stageTarget?.clientHeight,
+      });
     }
 
     window.addEventListener("keydown", this.keyDownHandler);

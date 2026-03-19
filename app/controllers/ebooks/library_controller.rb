@@ -3,6 +3,7 @@
 module Ebooks
   class LibraryController < ApplicationController
     extend T::Sig
+    wrap_parameters false
 
     sig { void }
     def index
@@ -68,9 +69,9 @@ module Ebooks
     def reader
       books_source = T.let(Book, T.untyped)
       controller = T.unsafe(self)
-      book = books_source.select(:id, :title, :updated_at, :epub_data).find_by(id: controller.params[:id])
+      book = books_source.select(:id, :title, :updated_at, :epub_byte_size).find_by(id: controller.params[:id])
 
-      if book.blank? || book.epub_data.blank?
+      if book.blank? || book.epub_byte_size.to_i == 0
         controller.redirect_to ebooks_library_path, alert: "This book does not have readable EPUB content."
         return
       end
@@ -153,19 +154,25 @@ module Ebooks
         return
       end
 
+      start_time = Time.now
       stale = controller.stale?(
         etag: [ book.id, book.updated_at&.to_i, book.epub_byte_size ],
         last_modified: book.updated_at,
         public: false
       )
+      elapsed = Time.now - start_time
+      Rails.logger.info("EPUB stale? check took #{elapsed.round(3)}s for book #{book.id} (#{controller.request.headers['HTTP_IF_NONE_MATCH'].present? ? 'conditional' : 'full'})")
+
       return unless stale
 
+      send_time = Time.now
       controller.send_data(
         book.epub_data,
         type: book.epub_content_type.presence || "application/epub+zip",
         disposition: "inline",
         filename: book.epub_filename.presence || "book.epub"
       )
+      Rails.logger.info("EPUB send_data took #{(Time.now - send_time).round(3)}s for #{book.epub_byte_size} bytes")
     end
   end
 end
