@@ -10,6 +10,9 @@ module GeneratedPathHelpersModule
   include ::ActionDispatch::Routing::PolymorphicRoutes
 
   sig { params(args: T.untyped).returns(String) }
+  def add_data_fluenttrial_index_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
   def ebooks_library_book_cover_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
@@ -32,6 +35,9 @@ module GeneratedPathHelpersModule
 
   sig { params(args: T.untyped).returns(String) }
   def epub_preview_path(*args); end
+
+  sig { params(args: T.untyped).returns(String) }
+  def fluenttrial_index_path(*args); end
 
   sig { params(args: T.untyped).returns(String) }
   def new_rails_conductor_inbound_email_path(*args); end

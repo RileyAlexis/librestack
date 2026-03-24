@@ -54,6 +54,11 @@ group :development, :test do
   gem "rubocop-rails-omakase", require: false
 end
 
+# Access State Machine
+gem "aasm"
+
+
+
 group :development do
   # Use console on exceptions pages [https://github.com/rails/web-console]
   gem "web-console"
@@ -63,8 +68,10 @@ group :development do
   gem "tapioca", "~> 0.17", require: false
   gem "yard"
   gem "vite_rails"
+  gem "hotwire-livereload", "~> 2.1"
   gem "htmlbeautifier", "~> 1.4"
   gem "annotaterb", "~> 4.22"
+  gem "rails_live_reload", "~> 0.5.0"
 end
 
 group :test do

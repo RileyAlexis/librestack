@@ -7,18 +7,28 @@
   <%= render partial: "reader_controls", locals: { book: @book } %>
   <div class="reader-stage" id="reader-stage" data-reader-target="stage"></div>
   <div class="reader-pagination">
-    <button 
+    <sl-button 
+      variant="text"
+      size="small"
+      outline
+      pill
+
       id="reader-prev"
       class="reader-page-link"
       type="button"
       data-reader-target="prevButton"
       data-action="click->reader#prev"
       >
-      Previous</button>
+      Previous</sl-button>
     <span id="reader-page-status"
       data-reader-target="pageStatus"
     >Loading book...</span>
-    <button 
+    <sl-button 
+      variant="primary"
+      size="large"
+      outline
+      pill
+
       id="reader-next"
       class="reader-page-link"
       type="button"
@@ -26,6 +36,6 @@
       data-action="click->reader#next"
       >
       Next
-    </button>
+    </sl-button>
   </div>
 </div>

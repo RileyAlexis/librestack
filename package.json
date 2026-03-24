@@ -7,11 +7,15 @@
     "rails": "bin/rails s"
   },
   "dependencies": {
+    "@awesome.me/webawesome": "^3.3.1",
     "@hotwired/stimulus": "^3.2.2",
     "@hotwired/turbo-rails": "^8.0.13",
+    "@puris/web-components": "file:../purisWebComponents",
+    "@shoelace-style/shoelace": "^2.20.1",
     "epubjs": "^0.3.93"
   },
   "devDependencies": {
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
     "typescript": "^5.9.3",
     "vite": "^6.4.1",
     "vite-plugin-ruby": "^5.1.3"

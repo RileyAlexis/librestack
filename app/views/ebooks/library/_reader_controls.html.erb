@@ -6,35 +6,40 @@
   </div>
   <div class="reader-controls">
     <label for="reader-font-family">Font</label>
-    <select 
+    <sl-select 
         id="reader-font-family"
         data-reader-target="fontFamily"
-        data-action="change->reader#fontFamilyChanged"
+        data-action="change->reader#fontFamilyChanged sl-change->reader#fontFamilyChanged"
+      title="Font"
+      style="max-width: 120px"
       >
-      <option value="Georgia, serif">Georgia</option>
-      <option value="'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', sans-serif">Atkinson</option>
-      <option value="'IBM Plex Serif', serif">IBM Plex Serif</option>
-      <option value="'Noto Serif', serif">Noto Serif</option>
-    </select>
-    <select
+      <sl-option value="Georgia, serif">Georgia</sl-option>
+      <sl-option value="'Atkinson Hyperlegible Next', 'Atkinson Hyperlegible', sans-serif">Atkinson</sl-option>
+      <sl-option value="'IBM Plex Serif', serif">IBM Plex Serif</sl-option>
+      <sl-option value="'Noto Serif', serif">Noto Serif</sl-option>
+    </sl-select>
+    <sl-select
         id="reader-spread"
         data-reader-target="spread"
-        data-action="change->reader#spreadChanged"
+        data-action="change->reader#spreadChanged sl-change->reader#spreadChanged"
+      style="max-width: 120px"
       >
-      <option value="Single">Single</option>
-      <option value="Double">Double</option>
-    </select>
-    <label for="reader-font-size">Size</label>
-    <input 
+      <sl-option value="Single">Single</sl-option>
+      <sl-option value="Double">Double</sl-option>
+    </sl-select>
+    <%# <label for="reader-font-size">Size</label> %>
+    <sl-range 
         id="reader-font-size" 
-        type="range" 
         min="14" 
         max="30" 
         step="1" 
+        label="Font Size"
         value="18"
         data-reader-target="fontSize"
-        data-action="input->reader#fontSizeChanged"
-    />
+        data-action="input->reader#fontSizeChanged change->reader#fontSizeChanged sl-input->reader#fontSizeChanged sl-change->reader#fontSizeChanged"
+      style="max-width: 120px;"
+      >
+    </sl-range>
     <output 
         id="reader-font-size-output"
         data-reader-target="fontSizeOutput"

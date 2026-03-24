@@ -301,6 +301,31 @@
   }
 }
 
+html.sl-theme-dark,
+body.sl-theme-dark {
+  background: #0f1115;
+  color: #e5e7eb;
+}
+
+body.sl-theme-dark .library-book-card,
+body.sl-theme-dark .reader-header,
+body.sl-theme-dark .reader-stage,
+body.sl-theme-dark .reader-pagination {
+  background: #1b1f27;
+  border-color: #343b48;
+  color: #e5e7eb;
+}
+
+body.sl-theme-dark .reader-shell {
+  background: #131821;
+}
+
+body.sl-theme-dark .library-book-card-title,
+body.sl-theme-dark .library-book-card-cover-placeholder,
+body.sl-theme-dark .reader-page-link {
+  color: #e5e7eb;
+}
+
 @media only screen and (max-width: 450px) and (orientation: portrait) {
   .secondaryContainer {
     position: relative;

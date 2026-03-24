@@ -1,0 +1,25 @@
+.shoelaceTrialContainer {
+    display: flex;
+    flex-direction: column;
+    gap: 1em;
+    margin-left: 1em;
+}
+
+.shoelaceSelectContainer { 
+    display: flex;
+    flex-direction: row;
+    gap: 0.2em;
+}
+
+.shoelaceButtonContainer {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5em;
+}
+
+.webawesomeContainer {
+    display: flex;
+    flex-direction: row;
+    gap: 1em;
+    margin-top: 3em;
+}

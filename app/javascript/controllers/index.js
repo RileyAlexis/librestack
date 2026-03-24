@@ -2,7 +2,10 @@
 // Run that command whenever you add a new controller or create them with
 // ./bin/rails generate stimulus controllerName
 
-import { application } from "./application";
+import { application } from "./application"
 
-import ReaderController from "./reader_controller.ts";
-application.register("reader", ReaderController);
+import FluenttrialController from "./fluenttrial_controller"
+application.register("fluenttrial", FluenttrialController)
+
+import ReaderController from "./reader_controller"
+application.register("reader", ReaderController)

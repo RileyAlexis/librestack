@@ -67,7 +67,9 @@ export default class extends Controller<HTMLElement> {
   declare readonly nextButtonTarget: HTMLButtonElement;
   declare readonly pageStatusTarget: HTMLElement;
   declare readonly fontFamilyTarget: HTMLSelectElement;
-  declare readonly fontSizeTarget: HTMLInputElement;
+  declare readonly fontSizeTarget: HTMLElement & {
+    value?: string | number;
+  };
   declare readonly fontSizeOutputTarget: HTMLOutputElement;
   declare readonly spreadTarget: HTMLSelectElement;
 
@@ -92,6 +94,7 @@ export default class extends Controller<HTMLElement> {
   locationGenId: number = 0;
   keyDownHandler!: (event: KeyboardEvent) => void;
   resizeHandler!: () => void;
+  themeObserver: MutationObserver | null = null;
 
   private createBook(): Book {
     const factory = (EpubJS as unknown as { default: EpubFactory }).default;
@@ -109,6 +112,24 @@ export default class extends Controller<HTMLElement> {
 
   private extractCfi(location: ReaderLocation): string | undefined {
     return this.extractDisplayedLocation(location)?.cfi;
+  }
+
+  private currentFontSizeValue(): string {
+    const rawValue =
+      this.fontSizeTarget.value ??
+      this.fontSizeTarget.getAttribute("value") ??
+      "18";
+    const normalized = String(rawValue).trim();
+    const parsed = Number(normalized);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return String(parsed);
+    }
+    return "18";
+  }
+
+  private setFontSizeValue(nextValue: string): void {
+    this.fontSizeTarget.value = nextValue;
+    this.fontSizeTarget.setAttribute("value", nextValue);
   }
 
   connect() {
@@ -132,6 +153,7 @@ export default class extends Controller<HTMLElement> {
     this.locationGenId = 0;
     this.keyDownHandler = this.onKeydown.bind(this);
     this.resizeHandler = this.onResize.bind(this);
+    this.startThemeObserver();
 
     console.log("Reader controller connected, stage dimensions:", {
       width: this.stageTarget?.clientWidth,
@@ -156,6 +178,36 @@ export default class extends Controller<HTMLElement> {
     this.rendition = null;
     this.isRendering = false;
     this.locationGenId++;
+    this.themeObserver?.disconnect();
+    this.themeObserver = null;
+  }
+
+  private isDarkThemeActive(): boolean {
+    return (
+      document.documentElement.classList.contains("sl-theme-dark") ||
+      document.body?.classList.contains("sl-theme-dark") ||
+      false
+    );
+  }
+
+  private startThemeObserver(): void {
+    this.themeObserver?.disconnect();
+
+    this.themeObserver = new MutationObserver(() => {
+      this.applyTheme();
+    });
+
+    this.themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
+    if (document.body) {
+      this.themeObserver.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class"],
+      });
+    }
   }
 
   getCsrfToken(): string {
@@ -364,9 +416,9 @@ export default class extends Controller<HTMLElement> {
     const savedSize = localStorage.getItem(SIZE_KEY);
     const savedSpread = localStorage.getItem(SPREAD_KEY);
     if (savedFamily) this.fontFamilyTarget.value = savedFamily;
-    if (savedSize) this.fontSizeTarget.value = savedSize;
+    if (savedSize) this.setFontSizeValue(savedSize);
     if (savedSpread) this.spreadTarget.value = savedSpread;
-    this.fontSizeOutputTarget.textContent = `${this.fontSizeTarget.value}px`;
+    this.fontSizeOutputTarget.textContent = `${this.currentFontSizeValue()}px`;
 
     let epubBinary: ArrayBuffer;
     try {
@@ -489,19 +541,43 @@ export default class extends Controller<HTMLElement> {
   applyTheme() {
     if (!this.rendition) return;
 
-    // In paginated flow, avoid body-level constraints that can interfere
-    // with page column calculations. Focus on font controls only.
-    this.rendition.themes.default({
+    const isDark = this.isDarkThemeActive();
+
+    this.rendition.themes.register("librestack-light", {
       body: {
+        background: "#ffffff",
+        color: "#111827",
         "font-family": this.fontFamilyTarget.value,
-        "font-size": `${this.fontSizeTarget.value}px`,
+        "font-size": `${this.currentFontSizeValue()}px`,
         "line-height": "1.5",
+      },
+      a: {
+        color: "#1d4ed8",
       },
     });
 
+    this.rendition.themes.register("librestack-dark", {
+      body: {
+        background: "#0f1115",
+        color: "#e5e7eb",
+        "font-family": this.fontFamilyTarget.value,
+        "font-size": `${this.currentFontSizeValue()}px`,
+        "line-height": "1.5",
+      },
+      a: {
+        color: "#93c5fd",
+      },
+    });
+
+    this.rendition.themes.select(
+      isDark ? "librestack-dark" : "librestack-light",
+    );
+
+    // In paginated flow, avoid body-level constraints that can interfere
+    // with page column calculations. Focus on font controls only.
     // Ensure dynamic control updates are applied immediately in the rendered spine.
     this.rendition.themes.override("font-family", this.fontFamilyTarget.value);
-    this.rendition.themes.fontSize(`${this.fontSizeTarget.value}px`);
+    this.rendition.themes.fontSize(`${this.currentFontSizeValue()}px`);
   }
 
   prev(event: Event): void {
@@ -534,10 +610,12 @@ export default class extends Controller<HTMLElement> {
   }
 
   fontSizeChanged() {
-    this.fontSizeOutputTarget.textContent = `${this.fontSizeTarget.value}px`;
-    localStorage.setItem("reader.fontSize", this.fontSizeTarget.value);
+    const size = this.currentFontSizeValue();
+    this.setFontSizeValue(size);
+    this.fontSizeOutputTarget.textContent = `${size}px`;
+    localStorage.setItem("reader.fontSize", size);
     if (this.rendition) {
-      this.rendition.themes.fontSize(`${this.fontSizeTarget.value}px`);
+      this.rendition.themes.fontSize(`${size}px`);
     }
     this.applyTheme();
   }

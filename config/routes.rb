@@ -12,6 +12,12 @@ namespace :ebooks do
   patch "books/:id/reading_progress", to: "library#update_reading_progress"
 end
 
+  resources :fluenttrial, only: [ :index ] do
+    collection do
+      post :add_data
+    end
+  end
+
   get "epub_preview", to: "pages#epub_preview"
   post "epub_preview", to: "pages#epub_preview_upload"
   get "epub_preview_assets/:preview_id/*asset_path", to: "pages#epub_preview_asset", as: :epub_preview_asset, format: false

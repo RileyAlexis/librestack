@@ -1,0 +1,83 @@
+<div class="shoelaceTrialContainer" data-controller="fluenttrial">
+  <div>
+    <puris-logomark variant="black" width="200px"></puris-logomark>
+    <puris-logotype variant="black" width="200px"></puris-logotype>
+  </div>
+  <div class="shoelaceTrialDataContainer">
+    <h1>Shoelace Trial Test Data</h1>
+    <h6 id="h6idthing">Data</h6>
+    <% if @dataThing.present? %>
+      <% @dataThing.each do |thing| %>
+        <strong><%= thing[:display_name] %></strong>
+        (<%= thing[:email] %>)
+        - status: <%= thing[:status] %>
+        - plan: <%= thing[:plan] %>
+      <% end %>
+      <div class='shoelaceButtonContainer'>
+        <%= form_with url: add_data_fluenttrial_index_path, method: :post, local: true do %>
+          <sl-button type="submit" variant="primary" outline>Hit Rails Controller</sl-button>
+        <% end %>
+        <div class="shoelaceButtons">
+          <sl-button 
+        data-action="click->fluenttrial#doabuttonthing"
+            appearance="primary">Shoelace Button</sl-button>
+          <sl-button 
+          data-action="click->fluenttrial#moreButtons"
+            appearance="primary"
+            outline
+            pill
+            >Button</sl-button>
+          <div class="shoelaceSelectContainer">
+            <div>
+              <sl-dropdown 
+          placement="bottom" 
+          distance="5"
+          skidding='15' 
+          sync
+
+          id="fluenttrial-theming"
+          >
+                <sl-button slot="trigger" caret>Dropdown</sl-button>
+                <sl-menu
+            data-action="sl-select->fluenttrial#changeTheme"
+                  >
+                  <sl-menu-item value="light">Light</sl-menu-item>
+                  <sl-menu-item value="dark">Dark</sl-menu-item>
+                </sl-menu>
+              </sl-dropdown>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="webawesomeContainer">
+        <wa-animation id="nonoButton" name="shake" duration="500">
+          <wa-button 
+            data-action="click->fluenttrial#shakey"
+            size="small"
+            pill
+            variant="brand"
+            appearance="outlined"
+            >WA Button
+          </wa-button>
+        </wa-animation>
+        <wa-button size="small" appearance="outlined"
+          data-action="click->fluenttrial#doabuttonthing"
+          >
+          <wa-icon 
+          data-action="click->fluenttrial#doabuttonthing"
+            family="solid" 
+            name="angles-up"
+            <%# animation="shake" %>
+            ></wa-icon>
+        </wa-button>
+        <wa-tooltip for="testButton" placement="right-start">Tooltip Text Here</wa-tooltip>
+        <wa-button id="testButton" size="small" appearance="filled-outline" variant="brand" pill>
+          <wa-icon family="solid" name="atom">
+          </wa-icon>
+        </wa-button>
+      </div>
+    </div>
+  <% else %>
+    <p>No test data available.</p>
+  <% end %>
+</div>
